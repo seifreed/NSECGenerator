@@ -2,6 +2,7 @@
 name = "nsec3-generator"
 version = "1.0.0"
 edition = "2024"
+rust-version = "1.85"
 authors = ["Marc Rivero <@seifreed>"]
 description = "High-performance NSEC3 hash pre-calculator for DNSight"
 license = "MIT"
