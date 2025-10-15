@@ -96,7 +96,7 @@ fn calculate_nsec3_hash(fqdn: &str, salt_bytes: &[u8], iterations: u32) -> Strin
     // Perform iterations: SHA1(previous_hash + salt)
     for _ in 0..iterations {
         let mut hasher = Sha1::new();
-        hasher.update(&hash);
+        hasher.update(hash);
         hasher.update(salt_bytes);
         hash = hasher.finalize();
     }
@@ -112,7 +112,7 @@ fn load_wordlist(path: &PathBuf) -> std::io::Result<Vec<String>> {
 
     Ok(reader
         .lines()
-        .filter_map(|line| line.ok())
+        .map_while(Result::ok)
         .map(|line| line.trim().to_string())
         .filter(|line| !line.is_empty())
         .collect())
@@ -128,7 +128,12 @@ fn get_cache_filename(salt: &str, iterations: u32) -> String {
 }
 
 /// Download wordlist from URL and save to file
-fn download_wordlist(url: &str, output_path: &PathBuf, limit: usize, name: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn download_wordlist(
+    url: &str,
+    output_path: &PathBuf,
+    limit: usize,
+    name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     print!("  → Downloading {} subdomains... ", name);
     std::io::stdout().flush()?;
 
@@ -156,19 +161,19 @@ fn download_wordlists(output_dir: &PathBuf, size: &str) -> Result<(), Box<dyn st
             "1k",
             "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt",
             1000,
-            "subdomains-1k.txt"
+            "subdomains-1k.txt",
         ),
         (
             "10k",
             "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-20000.txt",
             10000,
-            "subdomains-10k.txt"
+            "subdomains-10k.txt",
         ),
         (
             "100k",
             "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-110000.txt",
             100000,
-            "subdomains-100k.txt"
+            "subdomains-100k.txt",
         ),
     ];
 
@@ -176,7 +181,7 @@ fn download_wordlists(output_dir: &PathBuf, size: &str) -> Result<(), Box<dyn st
         if size == "all" || size == list_size {
             let output_path = output_dir.join(filename);
             match download_wordlist(url, &output_path, limit, &format!("{}K", limit / 1000)) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => eprintln!("  ✗ Failed to download {}: {}", filename, e),
             }
         }
@@ -191,7 +196,11 @@ fn download_wordlists(output_dir: &PathBuf, size: &str) -> Result<(), Box<dyn st
         for entry in entries.flatten() {
             if let Ok(metadata) = entry.metadata() {
                 let size_kb = metadata.len() / 1024;
-                println!("   {} ({} KB)", entry.file_name().to_string_lossy(), size_kb);
+                println!(
+                    "   {} ({} KB)",
+                    entry.file_name().to_string_lossy(),
+                    size_kb
+                );
             }
         }
     }
@@ -246,7 +255,11 @@ fn generate_hash_for_config(
     fs::write(&output_path, json)?;
 
     let file_size = fs::metadata(&output_path)?.len();
-    Ok(format!("{} ({:.2} MB)", output_path.display(), file_size as f64 / 1_048_576.0))
+    Ok(format!(
+        "{} ({:.2} MB)",
+        output_path.display(),
+        file_size as f64 / 1_048_576.0
+    ))
 }
 
 /// Generate hashes for common NSEC3 configurations
@@ -306,11 +319,18 @@ fn generate_common_configs(
     println!("✅ Generation complete!");
     println!("   Total time: {:.2}s", start_time.elapsed().as_secs_f64());
     println!();
-    println!("📋 Generated {} cache files in: {}", total, output_dir.display());
+    println!(
+        "📋 Generated {} cache files in: {}",
+        total,
+        output_dir.display()
+    );
     println!();
     println!("📊 Next steps:");
     println!("   1. Copy to DNSight cache directory:");
-    println!("      cp {}/*.json ../data/nsec3_cache/", output_dir.display());
+    println!(
+        "      cp {}/*.json ../data/nsec3_cache/",
+        output_dir.display()
+    );
     println!();
     println!("   2. Run DNSight zone walking:");
     println!("      dnsight zonewalk {}", domain);
@@ -330,7 +350,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Commands::DownloadWordlists { output, size } => {
                 return download_wordlists(&output, &size);
             }
-            Commands::GenerateCommon { domain, wordlist, output, threads } => {
+            Commands::GenerateCommon {
+                domain,
+                wordlist,
+                output,
+                threads,
+            } => {
                 return generate_common_configs(&domain, &wordlist, &output, threads);
             }
         }
@@ -355,7 +380,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📋 Configuration:");
     println!("   Domain: {}", domain);
     println!("   Wordlist: {}", wordlist.display());
-    println!("   Salt: {}", if args.salt.is_empty() { "none" } else { &args.salt });
+    println!(
+        "   Salt: {}",
+        if args.salt.is_empty() {
+            "none"
+        } else {
+            &args.salt
+        }
+    );
     println!("   Iterations: {}", args.iterations);
     println!("   Threads: {}", num_threads);
     println!();
@@ -365,7 +397,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::io::stdout().flush()?;
     let start = Instant::now();
     let subdomains = load_wordlist(&wordlist)?;
-    println!("✓ {} subdomains loaded ({:.2}s)", subdomains.len(), start.elapsed().as_secs_f64());
+    println!(
+        "✓ {} subdomains loaded ({:.2}s)",
+        subdomains.len(),
+        start.elapsed().as_secs_f64()
+    );
 
     // Parse salt from hex
     let salt_bytes = if args.salt.is_empty() {
