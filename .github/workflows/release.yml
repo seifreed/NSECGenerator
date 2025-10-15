@@ -1,0 +1,174 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build for ${{ matrix.platform.os_name }}
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          # Linux x86_64
+          - os_name: Linux-x86_64
+            os: ubuntu-20.04
+            target: x86_64-unknown-linux-gnu
+            bin: nsec3-generator
+            name: nsec3-generator-Linux-x86_64.tar.gz
+
+          # Linux ARM64
+          - os_name: Linux-aarch64
+            os: ubuntu-20.04
+            target: aarch64-unknown-linux-gnu
+            bin: nsec3-generator
+            name: nsec3-generator-Linux-aarch64.tar.gz
+
+          # Windows x86_64
+          - os_name: Windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: nsec3-generator.exe
+            name: nsec3-generator-Windows-x86_64.zip
+
+          # macOS x86_64
+          - os_name: macOS-x86_64
+            os: macOS-latest
+            target: x86_64-apple-darwin
+            bin: nsec3-generator
+            name: nsec3-generator-Darwin-x86_64.tar.gz
+
+          # macOS ARM64
+          - os_name: macOS-aarch64
+            os: macOS-latest
+            target: aarch64-apple-darwin
+            bin: nsec3-generator
+            name: nsec3-generator-Darwin-aarch64.tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.platform.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build binary
+        run: |
+          cargo build --release --locked --target ${{ matrix.platform.target }}
+
+      - name: Package binary (Unix)
+        if: matrix.platform.os_name != 'Windows-x86_64'
+        run: |
+          cd target/${{ matrix.platform.target }}/release
+          tar czvf ../../../${{ matrix.platform.name }} ${{ matrix.platform.bin }}
+          cd -
+
+      - name: Package binary (Windows)
+        if: matrix.platform.os_name == 'Windows-x86_64'
+        run: |
+          cd target/${{ matrix.platform.target }}/release
+          7z a ../../../${{ matrix.platform.name }} ${{ matrix.platform.bin }}
+          cd -
+
+      - name: Generate SHA-256
+        run: shasum -a 256 ${{ matrix.platform.name }} > ${{ matrix.platform.name }}.sha256
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.os_name }}
+          path: |
+            ${{ matrix.platform.name }}
+            ${{ matrix.platform.name }}.sha256
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## NSEC3 Generator ${{ github.ref_name }}
+
+            High-performance NSEC3 hash pre-calculator for DNSight
+
+            ### Downloads
+
+            Choose the binary for your platform:
+
+            - **Linux x86_64**: `nsec3-generator-Linux-x86_64.tar.gz`
+            - **Linux ARM64**: `nsec3-generator-Linux-aarch64.tar.gz`
+            - **Windows x86_64**: `nsec3-generator-Windows-x86_64.zip`
+            - **macOS x86_64** (Intel): `nsec3-generator-Darwin-x86_64.tar.gz`
+            - **macOS ARM64** (Apple Silicon): `nsec3-generator-Darwin-aarch64.tar.gz`
+
+            ### Installation
+
+            **Linux/macOS:**
+            ```bash
+            tar xzf nsec3-generator-*.tar.gz
+            chmod +x nsec3-generator
+            ./nsec3-generator --help
+            ```
+
+            **Windows:**
+            ```powershell
+            Expand-Archive nsec3-generator-Windows-x86_64.zip
+            .\nsec3-generator.exe --help
+            ```
+
+            ### Quick Start
+
+            ```bash
+            # Download wordlists
+            ./nsec3-generator download-wordlists
+
+            # Generate common configurations
+            ./nsec3-generator generate-common --domain example.com --wordlist wordlists/subdomains-10k.txt
+
+            # Generate specific configuration
+            ./nsec3-generator --domain example.com --wordlist wordlists/subdomains-100k.txt --salt "ABC123" --iterations 10
+            ```
+
+            ### Verify Download
+
+            Each release includes SHA-256 checksums. Verify with:
+            ```bash
+            shasum -a 256 -c nsec3-generator-*.sha256
+            ```
+
+            ---
+
+            **Full Documentation**: [README.md](https://github.com/seifreed/NSECGenerator/blob/main/README.md)
+
+            **Support**: [Buy me a coffee](https://buymeacoffee.com/seifreed) ☕

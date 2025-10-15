@@ -1,0 +1,30 @@
+[package]
+name = "nsec3-generator"
+version = "1.0.0"
+edition = "2024"
+authors = ["Marc Rivero <@seifreed>"]
+description = "High-performance NSEC3 hash pre-calculator for DNSight"
+license = "MIT"
+repository = "https://github.com/seifreed/NSECGenerator"
+homepage = "https://github.com/seifreed/DNSight"
+keywords = ["dns", "nsec3", "security", "pentesting", "reconnaissance"]
+categories = ["command-line-utilities", "cryptography"]
+
+[dependencies]
+sha1 = "0.10"
+base32 = "0.4"
+rayon = "1.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+clap = { version = "4.4", features = ["derive"] }
+indicatif = "0.17"
+hex = "0.4"
+num_cpus = "1.16"
+md5 = "0.7"
+reqwest = { version = "0.11", features = ["blocking"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
